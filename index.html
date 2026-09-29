@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Montage Video Builder</title>
+<style>
+  :root{
+    --navy:#143074;
+    --blue:#2b6eb4;
+    --cyan:#179ec7;
+    --ink:#0e1a33;
+    --paper:#f4f7fb;
+    --line:#d8e2ef;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;font-family:"Segoe UI",Roboto,Arial,sans-serif;
+    background:var(--paper);color:var(--ink);
+  }
+  header{
+    background:linear-gradient(90deg,var(--navy) 0%,var(--blue) 55%,var(--cyan) 100%);
+    color:#fff;padding:18px 24px;
+  }
+  header h1{margin:0;font-size:20px;letter-spacing:.3px}
+  header p{margin:4px 0 0;font-size:13px;opacity:.85}
+  .wrap{display:grid;grid-template-columns:380px 1fr;gap:18px;padding:18px;align-items:start}
+  @media (max-width:1000px){.wrap{grid-template-columns:1fr}}
+  .card{background:#fff;border:1px solid var(--line);border-radius:10px;margin-bottom:16px;overflow:hidden}
+  .card h2{
+    margin:0;padding:10px 14px;font-size:13px;text-transform:uppercase;letter-spacing:.8px;
+    background:var(--navy);color:#fff;
+  }
+  .card .body{padding:14px}
+  label{display:block;font-size:12px;font-weight:600;margin:10px 0 4px;color:#33415c}
+  input[type=text],input[type=number],select,textarea{
+    width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:#fff;color:var(--ink);
+  }
+  input[type=range]{width:100%;accent-color:var(--cyan)}
+  input[type=file]{font-size:12px;width:100%}
+  .row{display:flex;gap:10px}
+  .row>div{flex:1}
+  button{
+    background:var(--blue);color:#fff;border:0;border-radius:6px;padding:9px 14px;
+    font-size:13px;font-weight:600;cursor:pointer;
+  }
+  button:hover{background:var(--navy)}
+  button.ghost{background:#fff;color:var(--navy);border:1px solid var(--line)}
+  button.ghost:hover{background:#eef3fa}
+  button.cyan{background:var(--cyan)}
+  button.cyan:hover{background:var(--blue)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  button.mini{padding:3px 8px;font-size:11px;border-radius:5px}
+  .clip{
+    display:flex;align-items:center;gap:8px;border:1px solid var(--line);
+    border-radius:8px;padding:7px;margin-bottom:8px;background:#fbfdff;
+  }
+  .clip .thumb{width:54px;height:36px;border-radius:4px;background:#0b1830;object-fit:cover;flex:none}
+  .clip .meta{flex:1;min-width:0}
+  .clip .name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .clip .tag{font-size:10px;color:#5a6b86;text-transform:uppercase;letter-spacing:.5px}
+  .clip input[type=number]{width:62px;padding:4px 6px;font-size:12px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+  .grid3 button{padding:7px 0;font-size:11px}
+  .stage{background:#0b1830;border-radius:10px;padding:14px;position:sticky;top:18px}
+  canvas{width:100%;height:auto;display:block;border-radius:6px;background:#000}
+  .controls{display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap}
+  .hint{font-size:11px;color:#5a6b86;margin-top:6px;line-height:1.5}
+  .status{font-size:12px;color:#fff;opacity:.85;margin-left:auto}
+  .swatches{display:flex;gap:6px;margin-top:6px}
+  .sw{width:26px;height:26px;border-radius:5px;border:2px solid #fff;box-shadow:0 0 0 1px var(--line);cursor:pointer}
+  .empty{font-size:12px;color:#5a6b86;padding:10px;text-align:center;border:1px dashed var(--line);border-radius:8px}
+  .pill{display:inline-block;background:#eaf2fb;color:var(--navy);border-radius:20px;padding:2px 9px;font-size:11px;font-weight:600}
+</style>
+</head>
+<body>
+<header>
+  <h1>Montage Video Builder</h1>
+  <p>Add images and video clips, drop your logo anywhere on the frame, and export a montage as a video file.</p>
+</header>
+
+<div class="wrap">
+  <!-- ============ LEFT: CONTROLS ============ -->
+  <div>
+
+    <div class="card">
+      <h2>1 &middot; Media</h2>
+      <div class="body">
+        <label>Add images / videos (you can select many at once)</label>
+        <input type="file" id="mediaInput" accept="image/*,video/*" multiple />
+        <div class="hint">Order = play order. Use &uarr; &darr; to re-sequence. Duration is in seconds (videos are trimmed to this length).</div>
+        <div id="clipList" style="margin-top:12px"></div>
+        <div class="row" style="margin-top:6px">
+          <div><button class="ghost" id="applyAll">Apply first duration to all</button></div>
+          <div><button class="ghost" id="clearAll">Clear all</button></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>2 &middot; Logo</h2>
+      <div class="body">
+        <label>Logo file (PNG with transparency works best)</label>
+        <input type="file" id="logoInput" accept="image/*" />
+
+        <label>Where should the logo appear?</label>
+        <select id="logoScope">
+          <option value="all">On every clip (watermark)</option>
+          <option value="first">Intro / title card only</option>
+          <option value="last">End card only</option>
+          <option value="firstlast">Intro + end card only</option>
+          <option value="none">Do not show</option>
+        </select>
+
+        <label>Quick position</label>
+        <div class="grid3">
+          <button class="ghost" data-pos="5,8">Top left</button>
+          <button class="ghost" data-pos="50,8">Top centre</button>
+          <button class="ghost" data-pos="95,8">Top right</button>
+          <button class="ghost" data-pos="5,50">Mid left</button>
+          <button class="ghost" data-pos="50,50">Centre</button>
+          <button class="ghost" data-pos="95,50">Mid right</button>
+          <button class="ghost" data-pos="5,92">Bottom left</button>
+          <button class="ghost" data-pos="50,92">Bottom centre</button>
+          <button class="ghost" data-pos="95,92">Bottom right</button>
+        </div>
+
+        <label>Horizontal position <span class="pill" id="logoXv">95%</span></label>
+        <input type="range" id="logoX" min="0" max="100" step="0.5" value="95" />
+
+        <label>Vertical position <span class="pill" id="logoYv">92%</span></label>
+        <input type="range" id="logoY" min="0" max="100" step="0.5" value="92" />
+
+        <label>Logo size (% of frame width) <span class="pill" id="logoSv">14%</span></label>
+        <input type="range" id="logoS" min="2" max="60" step="0.5" value="14" />
+
+        <label>Opacity <span class="pill" id="logoOv">100%</span></label>
+        <input type="range" id="logoO" min="10" max="100" step="1" value="100" />
+
+        <div class="row" style="margin-top:10px">
+          <div>
+            <label style="margin-top:0">Backing plate behind logo</label>
+            <select id="logoPlate">
+              <option value="none">None</option>
+              <option value="white">White rounded box</option>
+              <option value="navy">Navy rounded box</option>
+            </select>
+          </div>
+        </div>
+        <div class="hint">Position is measured from the centre of the logo, so 50 / 50 is dead centre of the frame.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>3 &middot; Look &amp; feel</h2>
+      <div class="body">
+        <label>Title card text (leave blank to skip)</label>
+        <input type="text" id="titleText" placeholder="e.g. Team Building 2026" />
+        <label>Title subtitle</label>
+        <input type="text" id="titleSub" placeholder="e.g. Highlights" />
+        <label>End card text (leave blank to skip)</label>
+        <input type="text" id="endText" placeholder="e.g. Thank you" />
+
+        <div class="row">
+          <div>
+            <label>Title card seconds</label>
+            <input type="number" id="titleDur" value="3" min="1" max="15" step="0.5" />
+          </div>
+          <div>
+            <label>End card seconds</label>
+            <input type="number" id="endDur" value="3" min="1" max="15" step="0.5" />
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label>Crossfade (seconds)</label>
+            <input type="number" id="fade" value="0.6" min="0" max="3" step="0.1" />
+          </div>
+          <div>
+            <label>Frame size</label>
+            <select id="res">
+              <option value="1920x1080">1920 x 1080 (landscape)</option>
+              <option value="1280x720">1280 x 720 (landscape, light)</option>
+              <option value="1080x1080">1080 x 1080 (square)</option>
+              <option value="1080x1920">1080 x 1920 (portrait / reels)</option>
+            </select>
+          </div>
+        </div>
+
+        <label>Background colour</label>
+        <div class="row">
+          <div><input type="text" id="bg" value="#143074" /></div>
+        </div>
+        <div class="swatches">
+          <div class="sw" style="background:#143074" data-c="#143074"></div>
+          <div class="sw" style="background:#2b6eb4" data-c="#2b6eb4"></div>
+          <div class="sw" style="background:#179ec7" data-c="#179ec7"></div>
+          <div class="sw" style="background:#000000" data-c="#000000"></div>
+          <div class="sw" style="background:#ffffff" data-c="#ffffff"></div>
+        </div>
+
+        <label style="margin-top:12px">
+          <input type="checkbox" id="kenburns" checked style="width:auto;margin-right:6px" />Slow zoom on still images
+        </label>
+        <label>
+          <input type="checkbox" id="lowerBar" checked style="width:auto;margin-right:6px" />Brand colour bar along the bottom
+        </label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>4 &middot; Audio (optional)</h2>
+      <div class="body">
+        <label>Background music (mp3 / m4a / wav)</label>
+        <input type="file" id="musicInput" accept="audio/*" />
+        <label>Music volume <span class="pill" id="volV">70%</span></label>
+        <input type="range" id="vol" min="0" max="100" value="70" />
+        <label>
+          <input type="checkbox" id="keepVideoAudio" style="width:auto;margin-right:6px" />Keep the original audio from video clips
+        </label>
+        <div class="hint">Only use music you are licensed to use.</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ============ RIGHT: STAGE ============ -->
+  <div>
+    <div class="stage">
+      <canvas id="stage" width="1920" height="1080"></canvas>
+      <div class="controls">
+        <button id="play">Preview</button>
+        <button class="ghost" id="stop">Stop</button>
+        <button class="cyan" id="record">Record &amp; download</button>
+        <span class="status" id="status">No media added yet.</span>
+      </div>
+      <div class="controls">
+        <input type="range" id="scrub" min="0" max="100" value="0" step="0.1" style="flex:1" />
+      </div>
+      <div class="hint" style="color:#b9c9e2">
+        Recording plays the montage once in real time and saves a .webm file. Keep this tab in the foreground while it records.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var BRAND = { navy:"#143074", blue:"#2b6eb4", cyan:"#179ec7" };
+
+  var canvas = document.getElementById("stage");
+  var ctx = canvas.getContext("2d");
+  var clips = [];
+  var logoImg = null;
+  var musicEl = null;
+  var playing = false, recording = false;
+  var startWall = 0, rafId = null, scrubHold = false;
+  var recorder = null, audioCtx = null, audioDest = null, wiredAudio = [];
+
+  function $(id){ return document.getElementById(id); }
+  function num(id, fallback){ var v = parseFloat($(id).value); return isNaN(v) ? fallback : v; }
+
+  /* ---------- timeline ---------- */
+  function buildTimeline(){
+    var list = [];
+    var t = $("titleText").value.trim(), s = $("titleSub").value.trim(), e = $("endText").value.trim();
+    if (t || s) list.push({ type:"text", line1:t, line2:s, duration:num("titleDur",3), slot:"first" });
+    for (var i=0;i<clips.length;i++) list.push(clips[i]);
+    if (e) list.push({ type:"text", line1:e, line2:"", duration:num("endDur",3), slot:"last" });
+
+    var fade = num("fade",0.6), start = 0;
+    for (var j=0;j<list.length;j++){
+      list[j].start = start;
+      list[j].end = start + list[j].duration;
+      start = list[j].end - (j < list.length-1 ? Math.min(fade, list[j].duration/2) : 0);
+    }
+    return { items:list, total: list.length ? list[list.length-1].end : 0 };
+  }
+
+  /* ---------- drawing helpers ---------- */
+  function drawCover(el, w, h, zoom){
+    var sw = el.videoWidth || el.naturalWidth || el.width;
+    var sh = el.videoHeight || el.naturalHeight || el.height;
+    if (!sw || !sh) return;
+    var scale = Math.max(w/sw, h/sh) * (zoom || 1);
+    var dw = sw*scale, dh = sh*scale;
+    ctx.drawImage(el, (w-dw)/2, (h-dh)/2, dw, dh);
+  }
+
+  function roundRect(x,y,w,h,r){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+  }
+
+  function drawTextCard(item, w, h){
+    var g = ctx.createLinearGradient(0,0,w,h);
+    g.addColorStop(0, BRAND.navy);
+    g.addColorStop(0.55, BRAND.blue);
+    g.addColorStop(1, BRAND.cyan);
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,w,h);
+    ctx.fillStyle = "#ffffff";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    if (item.line1){
+      ctx.font = "700 " + Math.round(w*0.062) + "px Segoe UI, Arial, sans-serif";
+      ctx.fillText(item.line1, w/2, h/2 - (item.line2 ? w*0.035 : 0));
+    }
+    if (item.line2){
+      ctx.font = "400 " + Math.round(w*0.032) + "px Segoe UI, Arial, sans-serif";
+      ctx.globalAlpha = 0.9;
+      ctx.fillText(item.line2, w/2, h/2 + w*0.038);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function drawLowerBar(w,h){
+    var bh = Math.max(4, Math.round(h*0.012));
+    var g = ctx.createLinearGradient(0,0,w,0);
+    g.addColorStop(0, BRAND.navy);
+    g.addColorStop(0.5, BRAND.blue);
+    g.addColorStop(1, BRAND.cyan);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, h-bh, w, bh);
+  }
+
+  function drawLogo(w,h,slot){
+    if (!logoImg) return;
+    var scope = $("logoScope").value;
+    if (scope === "none") return;
+    if (scope === "first" && slot !== "first") return;
+    if (scope === "last"  && slot !== "last")  return;
+    if (scope === "firstlast" && slot !== "first" && slot !== "last") return;
+
+    var lw = w * (num("logoS",14)/100);
+    var lh = lw * (logoImg.naturalHeight / logoImg.naturalWidth);
+    var cx = w * (num("logoX",95)/100);
+    var cy = h * (num("logoY",92)/100);
+    var x = cx - lw/2, y = cy - lh/2;
+
+    ctx.save();
+    ctx.globalAlpha = num("logoO",100)/100;
+    var plate = $("logoPlate").value;
+    if (plate !== "none"){
+      var pad = lw*0.12;
+      ctx.fillStyle = (plate === "white") ? "rgba(255,255,255,0.88)" : "rgba(20,48,116,0.82)";
+      roundRect(x-pad, y-pad, lw+pad*2, lh+pad*2, Math.min(lw,lh)*0.16);
+      ctx.fill();
+    }
+    ctx.drawImage(logoImg, x, y, lw, lh);
+    ctx.restore();
+  }
+
+  /* ---------- frame renderer ---------- */
+  function renderAt(time, tl){
+    var w = canvas.width, h = canvas.height;
+    var fade = num("fade",0.6);
+    ctx.save();
+    ctx.fillStyle = $("bg").value || "#000000";
+    ctx.fillRect(0,0,w,h);
+    ctx.restore();
+
+    var topSlot = "middle";
+    for (var i=0;i<tl.items.length;i++){
+      var it = tl.items[i];
+      if (time < it.start || time > it.end) {
+        if (it.type === "video" && it.el && !it.el.paused) it.el.pause();
+        continue;
+      }
+      var local = time - it.start;
+      var a = 1;
+      if (fade > 0){
+        if (i > 0 && local < fade) a = Math.min(a, local/fade);
+        if (i < tl.items.length-1 && (it.end - time) < fade) a = Math.min(a, (it.end - time)/fade);
+      }
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, a));
+      if (it.type === "text"){
+        drawTextCard(it, w, h);
+      } else if (it.type === "image"){
+        var zoom = $("kenburns").checked ? (1 + 0.08 * (local/Math.max(it.duration,0.001))) : 1;
+        drawCover(it.el, w, h, zoom);
+      } else if (it.type === "video"){
+        if (playing || recording){
+          if (it.el.paused){
+            try { it.el.currentTime = Math.max(0, local); } catch(err){}
+            it.el.muted = !$("keepVideoAudio").checked;
+            var p = it.el.play(); if (p && p.catch) p.catch(function(){});
+          }
+        }
+        drawCover(it.el, w, h, 1);
+      }
+      ctx.restore();
+      if (a > 0.5) topSlot = it.slot || "middle";
+    }
+
+    if ($("lowerBar").checked) drawLowerBar(w,h);
+    drawLogo(w,h,topSlot);
+  }
+
+  function renderStatic(){
+    var tl = buildTimeline();
+    var t = (parseFloat($("scrub").value)/100) * tl.total;
+    renderAt(isNaN(t)?0:t, tl);
+    $("status").textContent = tl.items.length
+      ? clips.length + " clip(s) · total " + tl.total.toFixed(1) + "s · " + canvas.width + "x" + canvas.height
+      : "No media added yet.";
+  }
+
+  /* ---------- playback ---------- */
+  function loop(){
+    var tl = buildTimeline();
+    var t = (performance.now() - startWall)/1000;
+    if (t >= tl.total){ stopAll(true); return; }
+    renderAt(t, tl);
+    if (!scrubHold) $("scrub").value = String((t/tl.total)*100);
+    rafId = requestAnimationFrame(loop);
+  }
+
+  function startPlayback(){
+    var tl = buildTimeline();
+    if (!tl.items.length){ alert("Add at least one image or video first."); return false; }
+    for (var i=0;i<clips.length;i++){
+      if (clips[i].type === "video"){ try{ clips[i].el.pause(); clips[i].el.currentTime = 0; }catch(e){} }
+    }
+    if (musicEl){ try{ musicEl.currentTime = 0; musicEl.volume = num("vol",70)/100; musicEl.play(); }catch(e){} }
+    playing = true;
+    startWall = performance.now();
+    rafId = requestAnimationFrame(loop);
+    return true;
+  }
+
+  function stopAll(finished){
+    playing = false;
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = null;
+    for (var i=0;i<clips.length;i++){ if (clips[i].type === "video"){ try{ clips[i].el.pause(); }catch(e){} } }
+    if (musicEl){ try{ musicEl.pause(); }catch(e){} }
+    if (recording && recorder && recorder.state !== "inactive"){ recorder.stop(); }
+    if (!finished) renderStatic();
+  }
+
+  /* ---------- audio graph for recording ---------- */
+  function buildAudioTrack(){
+    var sources = [];
+    if (musicEl) sources.push(musicEl);
+    if ($("keepVideoAudio").checked){
+      for (var i=0;i<clips.length;i++) if (clips[i].type === "video") sources.push(clips[i].el);
+    }
+    if (!sources.length) return null;
+    if (!audioCtx){
+      var AC = window.AudioContext || window.webkitAudioContext;
+      audioCtx = new AC();
+      audioDest = audioCtx.createMediaStreamDestination();
+    }
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    for (var j=0;j<sources.length;j++){
+      var el = sources[j];
+      if (wiredAudio.indexOf(el) !== -1) continue;
+      try{
+        var src = audioCtx.createMediaElementSource(el);
+        var gain = audioCtx.createGain();
+        gain.gain.value = (el === musicEl) ? num("vol",70)/100 : 1;
+        el._gain = gain;
+        src.connect(gain);
+        gain.connect(audioDest);
+        gain.connect(audioCtx.destination);
+        wiredAudio.push(el);
+      }catch(err){}
+    }
+    return audioDest.stream.getAudioTracks()[0] || null;
+  }
+
+  function startRecording(){
+    if (!window.MediaRecorder){ alert("This browser cannot record. Use Chrome or Edge."); return; }
+    var stream = canvas.captureStream(30);
+    var aTrack = buildAudioTrack();
+    if (aTrack) stream.addTrack(aTrack);
+
+    var mime = "video/webm;codecs=vp9,opus";
+    if (!MediaRecorder.isTypeSupported(mime)) mime = "video/webm;codecs=vp8,opus";
+    if (!MediaRecorder.isTypeSupported(mime)) mime = "video/webm";
+
+    var chunks = [];
+    recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 8000000 });
+    recorder.ondataavailable = function(ev){ if (ev.data && ev.data.size) chunks.push(ev.data); };
+    recorder.onstop = function(){
+      recording = false;
+      $("record").disabled = false;
+      $("record").textContent = "Record & download";
+      var blob = new Blob(chunks, { type:"video/webm" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = "montage-" + Date.now() + ".webm";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+      $("status").textContent = "Saved. Check your downloads folder.";
+    };
+
+    recording = true;
+    $("record").disabled = true;
+    $("record").textContent = "Recording…";
+    recorder.start(250);
+    if (!startPlayback()){ recorder.stop(); }
+  }
+
+  /* ---------- media list ---------- */
+  function renderList(){
+    var box = $("clipList");
+    box.innerHTML = "";
+    if (!clips.length){
+      box.innerHTML = '<div class="empty">No media yet. Add images or video clips above.</div>';
+      renderStatic();
+      return;
+    }
+    clips.forEach(function(c, idx){
+      var row = document.createElement("div");
+      row.className = "clip";
+
+      var th = document.createElement("canvas");
+      th.className = "thumb"; th.width = 108; th.height = 72;
+      try{
+        var tctx = th.getContext("2d");
+        var sw = c.el.videoWidth || c.el.naturalWidth, sh = c.el.videoHeight || c.el.naturalHeight;
+        if (sw && sh){
+          var sc = Math.max(108/sw, 72/sh);
+          tctx.drawImage(c.el, (108-sw*sc)/2, (72-sh*sc)/2, sw*sc, sh*sc);
+        }
+      }catch(e){}
+
+      var meta = document.createElement("div");
+      meta.className = "meta";
+      meta.innerHTML = '<div class="name">' + (idx+1) + '. ' + c.name.replace(/[<>]/g,"") +
+                       '</div><div class="tag">' + c.type + '</div>';
+
+      var dur = document.createElement("input");
+      dur.type = "number"; dur.min = "0.5"; dur.step = "0.5"; dur.value = c.duration;
+      dur.onchange = function(){
+        var v = parseFloat(dur.value);
+        c.duration = (isNaN(v) || v < 0.5) ? 0.5 : v;
+        dur.value = c.duration; renderStatic();
+      };
+
+      var up = document.createElement("button"); up.className = "mini ghost"; up.textContent = "↑";
+      up.onclick = function(){ if (idx>0){ var t=clips[idx-1]; clips[idx-1]=clips[idx]; clips[idx]=t; renderList(); } };
+      var dn = document.createElement("button"); dn.className = "mini ghost"; dn.textContent = "↓";
+      dn.onclick = function(){ if (idx<clips.length-1){ var t=clips[idx+1]; clips[idx+1]=clips[idx]; clips[idx]=t; renderList(); } };
+      var rm = document.createElement("button"); rm.className = "mini"; rm.textContent = "✕";
+      rm.onclick = function(){ clips.splice(idx,1); renderList(); };
+
+      row.appendChild(th); row.appendChild(meta); row.appendChild(dur);
+      row.appendChild(up); row.appendChild(dn); row.appendChild(rm);
+      box.appendChild(row);
+    });
+    renderStatic();
+  }
+
+  function addFiles(files){
+    var arr = Array.prototype.slice.call(files);
+    arr.forEach(function(file){
+      var url = URL.createObjectURL(file);
+      if (file.type.indexOf("image") === 0){
+        var img = new Image();
+        img.onload = function(){
+          clips.push({ type:"image", name:file.name, el:img, duration:3, slot:"middle" });
+          renderList();
+        };
+        img.src = url;
+      } else if (file.type.indexOf("video") === 0){
+        var v = document.createElement("video");
+        v.preload = "auto"; v.playsInline = true; v.muted = true;
+        v.onloadeddata = function(){
+          var d = Math.min(v.duration || 5, 12);
+          clips.push({ type:"video", name:file.name, el:v, duration: Math.max(1, Math.round(d*10)/10), slot:"middle" });
+          renderList();
+        };
+        v.src = url;
+      }
+    });
+  }
+
+  /* ---------- wiring ---------- */
+  $("mediaInput").addEventListener("change", function(e){ addFiles(e.target.files); e.target.value = ""; });
+
+  $("logoInput").addEventListener("change", function(e){
+    var f = e.target.files[0]; if (!f) return;
+    var img = new Image();
+    img.onload = function(){ logoImg = img; renderStatic(); };
+    img.src = URL.createObjectURL(f);
+  });
+
+  $("musicInput").addEventListener("change", function(e){
+    var f = e.target.files[0]; if (!f) return;
+    musicEl = document.createElement("audio");
+    musicEl.src = URL.createObjectURL(f);
+    musicEl.loop = true;
+    musicEl.volume = num("vol",70)/100;
+  });
+
+  $("applyAll").addEventListener("click", function(){
+    if (!clips.length) return;
+    var d = clips[0].duration;
+    clips.forEach(function(c){ c.duration = d; });
+    renderList();
+  });
+
+  $("clearAll").addEventListener("click", function(){ clips = []; renderList(); });
+
+  Array.prototype.forEach.call(document.querySelectorAll("[data-pos]"), function(b){
+    b.addEventListener("click", function(){
+      var p = b.getAttribute("data-pos").split(",");
+      $("logoX").value = p[0]; $("logoY").value = p[1];
+      syncLabels(); renderStatic();
+    });
+  });
+
+  Array.prototype.forEach.call(document.querySelectorAll(".sw"), function(s){
+    s.addEventListener("click", function(){ $("bg").value = s.getAttribute("data-c"); renderStatic(); });
+  });
+
+  $("res").addEventListener("change", function(){
+    var p = $("res").value.split("x");
+    canvas.width = parseInt(p[0],10); canvas.height = parseInt(p[1],10);
+    renderStatic();
+  });
+
+  function syncLabels(){
+    $("logoXv").textContent = $("logoX").value + "%";
+    $("logoYv").textContent = $("logoY").value + "%";
+    $("logoSv").textContent = $("logoS").value + "%";
+    $("logoOv").textContent = $("logoO").value + "%";
+    $("volV").textContent = $("vol").value + "%";
+    if (musicEl) musicEl.volume = num("vol",70)/100;
+  }
+
+  ["logoX","logoY","logoS","logoO","vol"].forEach(function(id){
+    $(id).addEventListener("input", function(){ syncLabels(); if (!playing) renderStatic(); });
+  });
+
+  ["titleText","titleSub","endText","titleDur","endDur","fade","bg","logoScope","logoPlate","kenburns","lowerBar"]
+    .forEach(function(id){ $(id).addEventListener("input", function(){ if (!playing) renderStatic(); }); });
+
+  $("scrub").addEventListener("mousedown", function(){ scrubHold = true; });
+  $("scrub").addEventListener("mouseup", function(){ scrubHold = false; });
+  $("scrub").addEventListener("input", function(){ if (!playing) renderStatic(); });
+
+  $("play").addEventListener("click", function(){ if (!playing) startPlayback(); });
+  $("stop").addEventListener("click", function(){ stopAll(false); });
+  $("record").addEventListener("click", function(){ startRecording(); });
+
+  syncLabels();
+  renderList();
+})();
+</script>
+</body>
+</html>
